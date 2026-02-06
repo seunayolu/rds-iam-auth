@@ -1,0 +1,14 @@
+{
+  "name": "iam-rds-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ssm": "^3.980.0",
+    "@aws-sdk/rds-signer": "^3.980.0",
+    "mysql2": "^3.16.2",
+    "express": "^5.2.1"
+  }
+}
