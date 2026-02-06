@@ -1,9 +1,10 @@
-FROM node:23-alpine
+FROM node:23-bookworm
 
 WORKDIR /app
 
-# ca-certificates is required to trust the ACM root used by RDS Proxy
-RUN apk add --no-cache ca-certificates
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm install --omit=dev
@@ -11,7 +12,4 @@ RUN npm install --omit=dev
 COPY src ./src
 
 EXPOSE 3000
-
-# Note: The global-bundle.pem download has been removed 
-# because RDS Proxy uses publicly trusted certificates.
 CMD ["node", "src/server.js"]
