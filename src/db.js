@@ -20,7 +20,7 @@ export async function initDb(config) {
     if (!localPassword) {
       log.warn("No LOCAL_DB_PASSWORD provided — using a stub pool");
       pool = {
-        query: async (sql, params) => {
+        query: async (sql) => {
           const s = String(sql).trim().toLowerCase();
           if (s.startsWith("select")) return [[]];
           return [{}];
@@ -34,7 +34,6 @@ export async function initDb(config) {
       user: config.username,
       password: localPassword,
       database: config.dbname,
-      ssl: undefined,
       waitForConnections: true,
       connectionLimit: 5
     });
@@ -42,12 +41,14 @@ export async function initDb(config) {
     return pool;
   }
 
+  // ===== RDS IAM AUTH PATH =====
   log.info("Initializing DB with RDS IAM auth token (signer)");
+
   const signer = new Signer({
     region: config.region,
-    hostname: config.endpoint, // This is your RDS Proxy endpoint
+    hostname: config.endpoint, // RDS Proxy endpoint
     port: config.port,
-    username: config.username  // Ensure this matches 'app_user'
+    username: config.username
   });
 
   log.debug("Requesting IAM auth token from signer");
@@ -59,15 +60,27 @@ export async function initDb(config) {
     user: config.username,
     password: token,
     database: config.dbname,
-    // RDS Proxy uses ACM certs. By setting rejectUnauthorized: true 
-    // without a 'ca' property, mysql2 uses the system's CA store.
-    ssl: {
-      rejectUnauthorized: true 
+
+    // REQUIRED for MySQL IAM auth
+    // mysql2 will NOT send the token unless this is enabled
+    authPlugins: {
+      mysql_clear_password: () => () => Buffer.from(token + "\0")
     },
+
+    // RDS Proxy presents ACM-managed certs
+    ssl: {
+      rejectUnauthorized: true
+    },
+
     waitForConnections: true,
     connectionLimit: 5
   });
 
-  log.debug("Created mysql pool", { host: config.endpoint, user: config.username, database: config.dbname });
+  log.debug("Created mysql pool", {
+    host: config.endpoint,
+    user: config.username,
+    database: config.dbname
+  });
+
   return pool;
 }
