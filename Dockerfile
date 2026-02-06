@@ -2,10 +2,14 @@ FROM node:23-alpine
 
 WORKDIR /app
 
+# Install dependencies needed for wget and CA certs
+RUN apk add --no-cache wget ca-certificates
+
 COPY package*.json ./
 RUN npm install --omit=dev
 
-RUN wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /app/rds-ca-bundle.pem
+# Use the specific global bundle
+RUN wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /app/rds-ca-bundle.pem
 
 COPY src ./src
 
