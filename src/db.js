@@ -1,6 +1,5 @@
 import mysql from "mysql2/promise";
 import { Signer } from "@aws-sdk/rds-signer";
-import { readFileSync } from "fs";
 import { child } from "./logger.js";
 
 const log = child("db");
@@ -19,20 +18,17 @@ export async function initDb(config) {
     const localPassword = process.env.LOCAL_DB_PASSWORD;
 
     if (!localPassword) {
-      log.warn("No LOCAL_DB_PASSWORD provided — using a stub pool (no real DB calls)");
+      log.warn("No LOCAL_DB_PASSWORD provided — using a stub pool");
       pool = {
         query: async (sql, params) => {
           const s = String(sql).trim().toLowerCase();
-          log.debug("Stub pool received query:", s, params || []);
           if (s.startsWith("select")) return [[]];
           return [{}];
         }
       };
-
       return pool;
     }
 
-    log.debug("Creating local mysql pool", { host: config.endpoint, user: config.username, database: config.dbname });
     pool = mysql.createPool({
       host: config.endpoint,
       user: config.username,
@@ -49,37 +45,29 @@ export async function initDb(config) {
   log.info("Initializing DB with RDS IAM auth token (signer)");
   const signer = new Signer({
     region: config.region,
-    hostname: config.endpoint,
+    hostname: config.endpoint, // This is your RDS Proxy endpoint
     port: config.port,
-    username: config.username
+    username: config.username  // Ensure this matches 'app_user'
   });
 
   log.debug("Requesting IAM auth token from signer");
   const token = await signer.getAuthToken();
-  log.info("Received IAM auth token (value not logged)");
+  log.info("Received IAM auth token");
 
   pool = mysql.createPool({
     host: config.endpoint,
     user: config.username,
     password: token,
     database: config.dbname,
-    ssl: getSslConfig(),
+    // RDS Proxy uses ACM certs. By setting rejectUnauthorized: true 
+    // without a 'ca' property, mysql2 uses the system's CA store.
+    ssl: {
+      rejectUnauthorized: true 
+    },
     waitForConnections: true,
     connectionLimit: 5
   });
 
-  log.debug("Created mysql pool", { host: config.endpoint, user: config.username, database: config.dbname, ssl: true });
+  log.debug("Created mysql pool", { host: config.endpoint, user: config.username, database: config.dbname });
   return pool;
-}
-
-function getSslConfig() {
-  // Try to load RDS CA cert if available; otherwise use rejectUnauthorized: false for dev
-  try {
-    const ca = readFileSync("/app/rds-ca-bundle.pem", "utf8");
-    log.debug("Using RDS CA certificate bundle");
-    return { ca, rejectUnauthorized: true };
-  } catch {
-    log.warn("RDS CA certificate not found; disabling certificate validation (dev mode only)");
-    return { rejectUnauthorized: false };
-  }
 }
