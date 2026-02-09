@@ -64,13 +64,11 @@ export async function initDb(config) {
     // REQUIRED for MySQL IAM auth
     // mysql2 will NOT send the token unless this is enabled
     authPlugins: {
-      mysql_clear_password: () => () => token
+      mysql_clear_password: () => token
     },
 
     // RDS Proxy presents ACM-managed certs
-    ssl: {
-      rejectUnauthorized: true
-    },
+    ssl: "Amazon RDS",
 
     waitForConnections: true,
     connectionLimit: 5
